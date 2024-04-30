@@ -6,10 +6,12 @@ import platform
 import ssl
 import sys
 import tempfile
+import shlex
 from random import getrandbits
 from typing import Tuple, Union
 
 import ldap3
+from ldap3.utils.conv import escape_filter_chars
 from asn1crypto import cms, core
 from impacket.dcerpc.v5.rpcrt import TypeSerialization1
 from impacket.examples.ldap_shell import LdapShell as _LdapShell
@@ -76,6 +78,83 @@ class LdapShell(_LdapShell):
 
     def do_dump(self, line):
         logging.warning("Not implemented")
+
+    def do_shell(self, line):
+        from IPython import embed
+        embed()
+
+    def do_whoami(self, line):
+        print(self.client.extend.standard.who_am_i())
+
+    def do_get_useraccountcontrol(self, user_name):
+        self.client.search(self.domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars(user_name), attributes=['objectSid', 'userAccountControl'])
+
+        if len(self.client.entries) != 1:
+            raise Exception("Error expected only one search result got %d results", len(self.client.entries))
+
+        user_dn = self.client.entries[0].entry_dn
+        if not user_dn:
+            raise Exception("Account not found in LDAP: %s" % user_name)
+
+        entry = self.client.entries[0]
+        userAccountControl = entry["userAccountControl"].value
+
+        print("userAccountControl: %d" % userAccountControl)
+
+    def do_set_useraccountcontrol(self, line):
+        args = shlex.split(line)
+
+        if len(args) != 2:
+            print("Invalid args. set_useraccountcontrol <sAMAccountName> <userAccountControl>")
+            return
+
+        user_name = args[0]
+        userAccountControl = args[1]
+        self.client.search(self.domain_dumper.root, '(sAMAccountName=%s)' % escape_filter_chars(user_name), attributes=['objectSid'])
+
+        if len(self.client.entries) != 1:
+            raise Exception("Error expected only one search result got %d results", len(self.client.entries))
+
+        user_dn = self.client.entries[0].entry_dn
+        if not user_dn:
+            raise Exception("Computer not found in LDAP: %s" % user_name)
+
+        self.client.modify(user_dn, {'userAccountControl': (ldap3.MODIFY_REPLACE, [userAccountControl])})
+
+        if self.client.result['result'] == 0:
+            print("Updated userAccountControl attribute successfully")
+        else:
+            if self.client.result['result'] == 50:
+                raise Exception('Could not modify object, the server reports insufficient rights: %s', self.client.result['message'])
+            elif self.client.result['result'] == 19:
+                raise Exception('Could not modify object, the server reports a constrained violation: %s', self.client.result['message'])
+            else:
+                raise Exception('The server returned an error: %s', self.client.result['message'])
+
+    def do_help(self, line):
+        print("""
+ add_computer computer [password] [nospns] - Adds a new computer to the domain with the specified password. If nospns is specified, computer will be created with only a single necessary HOST SPN. Requires LDAPS.
+ rename_computer current_name new_name - Sets the SAMAccountName attribute on a computer object to a new value.
+ add_user new_user [parent] - Creates a new user.
+ add_user_to_group user group - Adds a user to a group.
+ change_password user [password] - Attempt to change a given user's password. Requires LDAPS.
+ clear_rbcd target - Clear the resource based constrained delegation configuration information.
+ disable_account user - Disable the user's account.
+ enable_account user - Enable the user's account.
+ dump - Dumps the domain.
+ search query [attributes,] - Search users and groups by name, distinguishedName and sAMAccountName.
+ get_user_groups user - Retrieves all groups this user is a member of.
+ get_group_users group - Retrieves all members of a group.
+ get_laps_password computer - Retrieves the LAPS passwords associated with a given computer (sAMAccountName).
+ grant_control target grantee - Grant full control of a given target object (sAMAccountName) to the grantee (sAMAccountName).
+ set_dontreqpreauth user true/false - Set the don't require pre-authentication flag to true or false.
+ set_rbcd target grantee - Grant the grantee (sAMAccountName) the ability to perform RBCD to the target (sAMAccountName).
+ start_tls - Send a StartTLS command to upgrade from LDAP to LDAPS. Use this to bypass channel binding for operations necessitating an encrypted channel.
+ write_gpo_dacl user gpoSID - Write a full control ACE to the gpo for the given user. The gpoSID must be entered surrounding by {}.
+ get_useraccountcontrol username
+ set_useraccountcontrol username userAccountControl
+ whoami
+ exit - Terminates this session.""")
 
     def do_exit(self, line):
         print("Bye!")
