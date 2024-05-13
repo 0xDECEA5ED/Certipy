@@ -511,13 +511,7 @@ class Authenticate:
 
         etype = as_rep["enc-part"]["etype"]
         cipher = _enctype_table[etype]
-        if etype == Enctype.AES256:
-            t_key = truncate_key(full_key, 32)
-        elif etype == Enctype.AES128:
-            t_key = truncate_key(full_key, 16)
-        else:
-            logging.error("Unexpected encryption type in AS_REP")
-            return False
+        t_key = truncate_key(full_key, cipher.keysize)
 
         key = Key(cipher.enctype, t_key)
         enc_data = as_rep["enc-part"]["cipher"]
@@ -666,7 +660,7 @@ class Authenticate:
             new_cipher = _enctype_table[int(tgs["ticket"]["enc-part"]["etype"])]
 
             plaintext = new_cipher.decrypt(session_key, 2, ciphertext)
-            special_key = Key(18, t_key)
+            special_key = Key(new_cipher.enctype, t_key)
 
             data = plaintext
             enc_ticket_part = decoder.decode(data, asn1Spec=EncTicketPart())[0]
