@@ -932,7 +932,7 @@ class Find:
             "renewal_period": "Renewal Period",
             "msPKI-Minimal-Key-Size": "Minimum RSA Key Length",
             "msPKI-Certificate-Policy": "Issuance Policies",
-            "issuance_policies_linked_groups" : "Linked Groups"
+            "issuance_policies_linked_groups" : "Linked Groups",
             "msPKI-Template-Schema-Version": "Template Schema Version"
         }
 
