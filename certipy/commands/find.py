@@ -95,6 +95,8 @@ class Find:
         oids: bool = False,
         vulnerable: bool = False,
         hide_admins: bool = False,
+        sid: str = None,
+        dn: str = None,
         dc_only: bool = False,
         scheme: str = "ldaps",
         connection: LDAPConnection = None,
@@ -112,6 +114,8 @@ class Find:
         self.oids = oids
         self.vuln = vulnerable
         self.hide_admins = hide_admins
+        self.sid = sid
+        self.dn = dn
         self.dc_only = dc_only
         self.scheme = scheme
         self.verbose = debug
@@ -169,7 +173,7 @@ class Find:
         connection = self.connection
 
         if self.vuln:
-            sids = connection.get_user_sids(self.target.username)
+            sids = connection.get_user_sids(self.target.username, self.sid, self.dn)
 
             if self.verbose:
                 logging.debug("List of current user's SIDs:")
@@ -1098,7 +1102,7 @@ class Find:
         security = CertifcateSecurity(template.get("nTSecurityDescriptor"))
         owner_sid = security.owner
 
-        if owner_sid in self.connection.get_user_sids(self.target.username):
+        if owner_sid in self.connection.get_user_sids(self.target.username, self.sid, self.dn):
             vulnerabilities[
                 "ESC4"
             ] = "Template is owned by %s" % self.connection.lookup_sid(owner_sid).get(
@@ -1123,7 +1127,7 @@ class Find:
         aces = security.aces
         vulnerable_acl_sids = []
         for sid, rights in aces.items():
-            if sid not in self.connection.get_user_sids(self.target.username):
+            if sid not in self.connection.get_user_sids(self.target.username, self.sid, self.dn):
                 continue
 
             ad_rights = rights["rights"]
@@ -1148,7 +1152,7 @@ class Find:
         aces = security.aces
         enrollable_sids = []
         for sid, rights in aces.items():
-            if sid not in self.connection.get_user_sids(self.target.username):
+            if sid not in self.connection.get_user_sids(self.target.username, self.sid, self.dn):
                 continue
 
             if (
@@ -1281,7 +1285,7 @@ class Find:
 
         aces = security.aces
         for sid, rights in aces.items():
-            if sid not in self.connection.get_user_sids(self.target.username):
+            if sid not in self.connection.get_user_sids(self.target.username, self.sid, self.dn):
                 continue
 
             ad_rights = rights["rights"]
